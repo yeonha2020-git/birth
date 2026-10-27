@@ -2,9 +2,16 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#fff8f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="가족생일">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>🎂 우리가족 생일 알림</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -107,15 +114,28 @@
         <div class="settings-grid">
           <article class="panel">
             <h3>🔔 생일 알림</h3>
-            <p class="muted">브라우저 알림을 허용하면 앱을 열어 둔 동안 생일을 알려드려요.</p>
-            <button class="button button-primary" id="notification-permission" type="button">생일 알림을 받으시겠습니까?</button>
+            <p class="muted">알림을 허용하면 앱을 열 때 생일을 알려드려요. 안드로이드 크롬에서 홈 화면에 설치하면 앱을 닫아 두어도 하루 한두 번 확인합니다.</p>
+            <div class="button-stack">
+              <button class="button button-primary" id="notification-permission" type="button">생일 알림을 받으시겠습니까?</button>
+              <button class="button button-light" id="test-notification" type="button" disabled>테스트 알림</button>
+            </div>
             <p id="notification-status" class="status-text" aria-live="polite"></p>
             <div class="check-list">
               <label><input type="checkbox" data-alert-offset="3" checked> 생일 3일 전</label>
               <label><input type="checkbox" data-alert-offset="1" checked> 생일 1일 전</label>
               <label><input type="checkbox" data-alert-offset="0" checked> 생일 당일</label>
             </div>
-            <p class="small-note">브라우저나 웹앱을 닫아 둔 동안에는 알림이 오지 않을 수 있어요. 알림을 받으려면 이 페이지를 열어 두세요.</p>
+          </article>
+          <article class="panel">
+            <h3>📆 휴대폰 캘린더에 추가</h3>
+            <p class="muted">앱을 닫아 두어도 <strong>확실하게</strong> 알림을 받는 방법이에요. 앞으로 10년간의 생일(음력은 해마다 양력 날짜로 계산)을 휴대폰 캘린더에 넣고, 위에서 고른 3일 전·1일 전·당일 오전 9시에 알람이 울리게 합니다.</p>
+            <button class="button button-primary" id="export-calendar" type="button">휴대폰 캘린더에 추가</button>
+            <p class="small-note">아이폰: Safari에서 누르면 '모두 추가' 화면이 나옵니다. 안드로이드: 받은 .ics 파일을 열어 캘린더 앱으로 가져오세요. 가족을 추가·수정한 뒤에는 다시 추가해 주세요.</p>
+          </article>
+          <article class="panel">
+            <h3>📱 휴대폰에 앱 설치</h3>
+            <p id="install-status" class="muted"></p>
+            <button class="button button-primary" id="install-button" type="button" hidden>홈 화면에 설치</button>
           </article>
           <article class="panel">
             <h3>💾 데이터 백업</h3>

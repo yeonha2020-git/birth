@@ -1,9 +1,9 @@
-// 한국천문연구원 자료를 바탕으로 한 한국 음력 변환 라이브러리입니다.
-// CDN을 사용할 수 없는 경우에도 양력 생일 관리는 계속할 수 있도록 별도 안내합니다.
-let lunarToSolar;
+// 한국천문연구원 자료를 바탕으로 한 한국 음력 변환 라이브러리(@fullstackfamily/manseryeok 1.0.8, MIT)입니다.
+// 휴대폰에서 인터넷 없이도 동작하도록 vendor 폴더에 함께 넣어 두었습니다.
+let getMonthlyIndex;
 let lunarLibraryError = "";
 try {
-  ({ lunarToSolar } = await import("https://cdn.jsdelivr.net/npm/@fullstackfamily/manseryeok@1.0.8/dist/index.mjs"));
+  ({ getMonthlyIndex } = await import("./vendor/manseryeok.mjs"));
 } catch (error) {
   lunarLibraryError = error instanceof Error ? error.message : String(error);
 }
@@ -16,7 +16,9 @@ const EXAMPLE_FAMILIES = [
   { id: "sample-dad", name: "김아빠", relationship: "아빠", group: "우리가족", calendarType: "solar", solarMonth: 8, solarDay: 20, memo: "" },
   { id: "sample-aunt", name: "이모", relationship: "이모", group: "외가", calendarType: "lunar", lunarMonth: 10, lunarDay: 5, isLeapMonth: false, memo: "" }
 ];
-const DEFAULT_SETTINGS = { alerts: { "3": true, "1": true, "0": true }, sent: [] };
+const DEFAULT_SETTINGS = { alerts: { "3": true, "1": true, "0": true } };
+const ALERT_OFFSETS = [3, 1, 0];
+const CALENDAR_EXPORT_YEARS = 10;
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -26,6 +28,7 @@ let activeGroup = "전체";
 let editingId = null;
 let calendarDate = new Date();
 let toastTimer;
+let installPrompt = null;
 
 function showToast(message) {
   const toast = $("#toast");
@@ -86,6 +89,14 @@ function dayDifference(later, earlier = todayDate()) {
     - dateOnly(earlier.getFullYear(), earlier.getMonth() + 1, earlier.getDate())) / 86400000);
 }
 
+function addDays(date, days) {
+  return dateOnly(date.getFullYear(), date.getMonth() + 1, date.getDate() + days);
+}
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function makeId() {
   if (crypto.randomUUID) return crypto.randomUUID();
   return `family-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -144,14 +155,13 @@ function loadData() {
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     if (savedSettings !== null) {
       const parsed = JSON.parse(savedSettings);
-      if (parsed && parsed.alerts && Array.isArray(parsed.sent)) {
+      if (parsed && parsed.alerts) {
         settings = {
           alerts: {
             "3": parsed.alerts["3"] !== false,
             "1": parsed.alerts["1"] !== false,
             "0": parsed.alerts["0"] !== false
-          },
-          sent: parsed.sent.filter((item) => typeof item === "string")
+          }
         };
       }
     }
@@ -160,25 +170,33 @@ function loadData() {
   }
 }
 
+// 라이브러리의 lunarToSolar는 음력 연도와 같은 양력 연도 안에서만 찾기 때문에
+// 다음 해 1~2월로 넘어가는 음력 11~12월 날짜를 찾지 못합니다. 그래서 양력 다음 해까지 직접 찾습니다.
+function findSolarDate(lunarYear, lunarMonth, lunarDay, isLeapMonth) {
+  for (const solarYear of [lunarYear, lunarYear + 1]) {
+    for (let solarMonth = 1; solarMonth <= 12; solarMonth += 1) {
+      const entry = getMonthlyIndex(solarYear, solarMonth)?.entries.find(({ lunar }) => lunar.year === lunarYear
+        && lunar.month === lunarMonth && lunar.day === lunarDay && lunar.isLeap === isLeapMonth);
+      if (entry) return dateOnly(entry.solar.year, entry.solar.month, entry.solar.day);
+    }
+  }
+  return null;
+}
+
 function convertLunarDate(year, month, day, isLeapMonth) {
-  if (!lunarToSolar) throw new Error("음력 변환 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 페이지를 새로고침해 주세요.");
+  if (!getMonthlyIndex) throw new Error("음력 변환 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 페이지를 새로고침해 주세요.");
   if (year < 1900 || year > 2050) throw new Error("음력 변환은 1900년부터 2050년까지만 지원합니다.");
 
   // 윤달이 없는 해에는 같은 달의 평달을 사용하고, 음력 30일이 없으면 29일로 계산합니다.
   const leapOptions = isLeapMonth ? [true, false] : [false];
   const dayOptions = day === 30 ? [30, 29] : [day];
-  let lastError;
   for (const leap of leapOptions) {
     for (const lunarDay of dayOptions) {
-      try {
-        const result = lunarToSolar(year, month, lunarDay, leap);
-        return dateOnly(result.solar.year, result.solar.month, result.solar.day);
-      } catch (error) {
-        lastError = error;
-      }
+      const date = findSolarDate(year, month, lunarDay, leap);
+      if (date) return date;
     }
   }
-  throw new Error(`음력 ${year}년 ${month}월 ${day}일을 변환하지 못했습니다. ${lastError?.message ?? ""}`);
+  throw new Error(`음력 ${year}년 ${month}월 ${day}일을 변환하지 못했습니다.`);
 }
 
 function solarBirthdayInYear(family, year) {
@@ -196,7 +214,7 @@ function birthdayInCalendarYear(family, year) {
     const date = solarBirthdayInYear(family, year);
     return date.getFullYear() === year ? [date] : [];
   }
-  if (!lunarToSolar) return [];
+  if (!getMonthlyIndex) return [];
   const dates = [];
   // 음력 연도와 양력 연도가 달라지는 1~2월을 위해 인접한 음력 연도도 확인합니다.
   for (const lunarYear of [year - 1, year, year + 1]) {
@@ -215,7 +233,7 @@ function nextBirthday(family, from = todayDate()) {
     const thisYear = solarBirthdayInYear(family, from.getFullYear());
     return thisYear >= from ? thisYear : solarBirthdayInYear(family, from.getFullYear() + 1);
   }
-  if (!lunarToSolar) return null;
+  if (!getMonthlyIndex) return null;
   const candidates = [];
   for (let lunarYear = from.getFullYear() - 1; lunarYear <= from.getFullYear() + 2; lunarYear += 1) {
     try {
@@ -353,6 +371,8 @@ function renderAll() {
   renderFamilyList();
   renderMonths();
   renderCalendar();
+  // 가족 정보나 날짜가 바뀌었을 수 있으니 알림 일정도 함께 새로 보냅니다(서비스 워커가 오늘 알림도 확인합니다).
+  syncAlertSchedule();
 }
 
 function navigate(viewName) {
@@ -508,10 +528,11 @@ function renderNotificationStatus() {
       ? "브라우저 설정에서 알림 허용"
       : "생일 알림을 받으시겠습니까?";
   status.textContent = Notification.permission === "granted"
-    ? "알림이 켜져 있습니다. 이 페이지가 열려 있을 때 알림을 확인합니다."
+    ? "알림이 켜져 있습니다. 앱을 열 때마다, 그리고 지원되는 휴대폰에서는 하루 한두 번 백그라운드에서 알림을 확인합니다."
     : Notification.permission === "denied"
       ? "알림이 차단되어 있습니다. 브라우저 사이트 설정에서 권한을 변경해 주세요."
       : "버튼을 누르면 브라우저 알림 권한을 요청합니다.";
+  $("#test-notification").disabled = Notification.permission !== "granted";
 }
 
 async function requestNotificationPermission() {
@@ -527,42 +548,189 @@ async function requestNotificationPermission() {
   const permission = await Notification.requestPermission();
   renderNotificationStatus();
   showToast(permission === "granted" ? "생일 알림을 켰습니다." : "브라우저 알림 권한이 허용되지 않았습니다.");
+  if (permission === "granted") {
+    await registerBackgroundCheck();
+    syncAlertSchedule();
+  }
 }
 
-function checkBirthdayAlerts() {
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
+function alertMessage(family, offset) {
+  if (offset === 3) return { title: "🔔 생일 3일 전", body: `3일 후 ${family.name}의 생일이에요 🎂\n미리 선물을 준비해보세요.` };
+  if (offset === 1) return { title: "🔔 생일 1일 전", body: `내일은 ${family.name}의 생일이에요 🎁` };
+  return { title: "🎉 오늘 생일", body: `오늘은 ${family.name}의 생일입니다! 🎉` };
+}
+
+// 앱을 오래 열지 않아도 알림을 보낼 수 있도록 가족마다 다음 생일 두 번치 알림 일정을 미리 계산합니다.
+function buildAlertSchedule() {
   const today = todayDate();
-  const upcoming = getUpcomingFamilies();
-  const newSent = [];
-  for (const { family, date } of upcoming) {
-    const days = dayDifference(date, today);
-    if (!Object.hasOwn(settings.alerts, String(days)) || !settings.alerts[String(days)]) continue;
-    const key = `${family.id}:${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}:${days}`;
-    if (settings.sent.includes(key)) continue;
-    let title;
-    let body;
-    if (days === 3) {
-      title = "🔔 생일 3일 전";
-      body = `3일 후 ${family.name}의 생일이에요 🎂\n미리 선물을 준비해보세요.`;
-    } else if (days === 1) {
-      title = "🔔 생일 1일 전";
-      body = `내일은 ${family.name}의 생일이에요 🎁`;
-    } else {
-      title = "🎉 오늘 생일";
-      body = `오늘은 ${family.name}의 생일입니다! 🎉`;
-    }
-    try {
-      new Notification(title, { body, icon: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f382.png" });
-      newSent.push(key);
-    } catch (error) {
-      showNotice(`브라우저 알림을 표시하지 못했습니다. (${error.message})`, true);
-      return;
+  const alerts = [];
+  for (const family of families) {
+    let birthday = nextBirthday(family, today);
+    for (let count = 0; count < 2 && birthday; count += 1) {
+      for (const offset of ALERT_OFFSETS) {
+        if (!settings.alerts[String(offset)]) continue;
+        const alertDate = addDays(birthday, -offset);
+        if (alertDate < today) continue;
+        alerts.push({ key: `${family.id}:${dateKey(birthday)}:${offset}`, date: dateKey(alertDate), ...alertMessage(family, offset) });
+      }
+      birthday = nextBirthday(family, addDays(birthday, 1));
     }
   }
-  if (newSent.length) {
-    settings.sent = [...settings.sent, ...newSent].slice(-300);
-    persistSettings();
+  return alerts;
+}
+
+async function activeServiceWorker() {
+  if (!("serviceWorker" in navigator)) return null;
+  const registration = await navigator.serviceWorker.getRegistration();
+  return registration?.active ?? null;
+}
+
+// 알림 일정은 서비스 워커에 넘기고, 실제 알림 표시와 중복 방지는 서비스 워커가 맡습니다.
+async function syncAlertSchedule() {
+  try {
+    const worker = await activeServiceWorker();
+    worker?.postMessage({ type: "schedule", alerts: buildAlertSchedule() });
+  } catch (error) {
+    console.error("알림 일정 전달 실패:", error);
   }
+}
+
+async function sendTestNotification() {
+  const worker = await activeServiceWorker();
+  if (!worker) {
+    showToast("이 브라우저에서는 알림을 보낼 수 없습니다. https 주소로 접속했는지 확인해 주세요.");
+    return;
+  }
+  worker.postMessage({ type: "test" });
+}
+
+// 안드로이드 크롬에서 홈 화면에 설치한 경우, 앱을 닫아도 하루 한두 번 알림을 확인하도록 요청합니다.
+async function registerBackgroundCheck() {
+  try {
+    const registration = await navigator.serviceWorker?.ready;
+    if (!registration || !("periodicSync" in registration)) return;
+    const status = await navigator.permissions.query({ name: "periodic-background-sync" });
+    if (status.state !== "granted") return;
+    await registration.periodicSync.register("birthday-check", { minInterval: 12 * 60 * 60 * 1000 });
+  } catch (error) {
+    console.warn("백그라운드 알림 확인을 등록하지 못했습니다:", error);
+  }
+}
+
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator) || !location.protocol.startsWith("http")) return;
+  try {
+    await navigator.serviceWorker.register("sw.js");
+    await navigator.serviceWorker.ready;
+    await registerBackgroundCheck();
+    syncAlertSchedule();
+  } catch (error) {
+    console.error("서비스 워커 등록 실패:", error);
+  }
+}
+
+function icsText(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+}
+
+// iCalendar는 한 줄을 75바이트 이하로 접어야 하므로 한글이 잘리지 않게 글자 단위로 나눕니다.
+function foldIcsLine(line) {
+  const encoder = new TextEncoder();
+  const parts = [];
+  let current = "";
+  let bytes = 0;
+  for (const character of line) {
+    const size = encoder.encode(character).length;
+    if (bytes + size > (parts.length ? 74 : 75)) {
+      parts.push(current);
+      current = "";
+      bytes = 0;
+    }
+    current += character;
+    bytes += size;
+  }
+  parts.push(current);
+  return parts.join("\r\n ");
+}
+
+// 하루 종일 일정은 0시에 시작하므로 오전 9시에 울리도록 알람 시점을 맞춥니다.
+const ICS_ALARM_TRIGGERS = { 3: "-P2DT15H", 1: "-PT15H", 0: "PT9H" };
+
+function buildCalendarFile() {
+  const today = todayDate();
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const compact = (date) => dateKey(date).replace(/-/g, "");
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//family-birthday//KO", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:우리가족 생일"];
+  let count = 0;
+  for (const family of families) {
+    for (let year = today.getFullYear(); year < today.getFullYear() + CALENDAR_EXPORT_YEARS; year += 1) {
+      let dates;
+      try {
+        dates = birthdayInCalendarYear(family, year);
+      } catch {
+        continue;
+      }
+      for (const date of dates.filter((item) => item >= today)) {
+        const description = [birthdayDescription(family), family.memo].filter(Boolean).join(" · ");
+        lines.push("BEGIN:VEVENT", `UID:${family.id}-${compact(date)}@family-birthday`, `DTSTAMP:${stamp}`,
+          `DTSTART;VALUE=DATE:${compact(date)}`, `DTEND;VALUE=DATE:${compact(addDays(date, 1))}`,
+          `SUMMARY:${icsText(`🎂 ${relationName(family)} 생일`)}`, `DESCRIPTION:${icsText(description)}`, "TRANSP:TRANSPARENT");
+        for (const offset of ALERT_OFFSETS) {
+          if (!settings.alerts[String(offset)]) continue;
+          lines.push("BEGIN:VALARM", "ACTION:DISPLAY", `TRIGGER:${ICS_ALARM_TRIGGERS[offset]}`,
+            `DESCRIPTION:${icsText(alertMessage(family, offset).body)}`, "END:VALARM");
+        }
+        lines.push("END:VEVENT");
+        count += 1;
+      }
+    }
+  }
+  lines.push("END:VCALENDAR");
+  return { content: `${lines.map(foldIcsLine).join("\r\n")}\r\n`, count };
+}
+
+function isAppleMobile() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function exportCalendar() {
+  const { content, count } = buildCalendarFile();
+  if (!count) {
+    showToast("내보낼 생일이 없습니다. 가족을 먼저 추가해 주세요.");
+    return;
+  }
+  // 아이폰 사파리는 data 주소로 열어야 '캘린더에 추가' 화면이 바로 나타납니다.
+  if (isAppleMobile()) {
+    location.href = `data:text/calendar;charset=utf-8,${encodeURIComponent(content)}`;
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([content], { type: "text/calendar;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "가족생일.ics";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(`앞으로 ${CALENDAR_EXPORT_YEARS}년간 생일 ${count}건을 캘린더 파일로 저장했습니다. 파일을 열어 캘린더에 추가해 주세요.`);
+}
+
+function renderInstallStatus() {
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  $("#install-button").hidden = standalone || !installPrompt;
+  $("#install-status").textContent = standalone
+    ? "홈 화면 앱으로 실행 중입니다 ✅"
+    : isAppleMobile()
+      ? "Safari 아래쪽 공유 버튼(⬆️) → '홈 화면에 추가'를 누르면 앱처럼 설치됩니다."
+      : installPrompt
+        ? "아래 버튼을 누르면 홈 화면에 앱으로 설치됩니다."
+        : "크롬 메뉴(⋮) → '홈 화면에 추가' 또는 '앱 설치'를 누르면 앱처럼 설치됩니다.";
+}
+
+async function installApp() {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  renderInstallStatus();
 }
 
 function exportData() {
@@ -635,10 +803,28 @@ function setupEvents() {
     if (button) renderCalendarDetails(Number(button.dataset.calendarDay));
   });
   $("#notification-permission").addEventListener("click", requestNotificationPermission);
+  $("#test-notification").addEventListener("click", sendTestNotification);
   $$("[data-alert-offset]").forEach((checkbox) => checkbox.addEventListener("change", () => {
     settings.alerts[checkbox.dataset.alertOffset] = checkbox.checked;
     persistSettings();
+    syncAlertSchedule();
   }));
+  $("#export-calendar").addEventListener("click", exportCalendar);
+  $("#install-button").addEventListener("click", installApp);
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    installPrompt = event;
+    renderInstallStatus();
+  });
+  window.addEventListener("appinstalled", () => {
+    installPrompt = null;
+    renderInstallStatus();
+    showToast("홈 화면에 앱을 설치했습니다.");
+  });
+  // 휴대폰에서 앱을 다시 열면 날짜가 바뀌었을 수 있으므로 화면과 알림을 새로 계산합니다.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") renderAll();
+  });
   $("#export-data").addEventListener("click", exportData);
   $("#import-data-button").addEventListener("click", () => $("#import-data-file").click());
   $("#import-data-file").addEventListener("change", (event) => {
@@ -654,20 +840,18 @@ async function startApp() {
   $$("[data-alert-offset]").forEach((checkbox) => {
     checkbox.checked = settings.alerts[checkbox.dataset.alertOffset] !== false;
   });
+  registerServiceWorker();
   renderAll();
   renderNotificationStatus();
+  renderInstallStatus();
 
   if (lunarLibraryError) {
-    showNotice("음력 변환 도구를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침해 주세요. 양력 생일은 계속 사용할 수 있습니다.", true);
+    showNotice("음력 변환 도구를 불러오지 못했습니다. 페이지를 새로고침해 주세요. 양력 생일은 계속 사용할 수 있습니다.", true);
     console.error("음력 변환 라이브러리 로드 실패:", lunarLibraryError);
   } else if (!$("#notice-area").childElementCount && (!("Notification" in window) || Notification.permission !== "granted")) {
-    showNotice("생일 알림을 설정해 보세요. 알림은 브라우저와 웹앱이 열려 있는 동안 받을 수 있습니다.", false, true);
+    showNotice("생일 알림을 설정해 보세요. 앱을 닫아 두어도 확실히 받으려면 '휴대폰 캘린더에 추가'도 함께 사용하세요.", false, true);
   }
-  checkBirthdayAlerts();
-  setInterval(() => {
-    renderAll();
-    checkBirthdayAlerts();
-  }, 60 * 1000);
+  setInterval(renderAll, 60 * 1000);
 }
 
 startApp();

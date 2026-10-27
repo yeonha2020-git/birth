@@ -17,10 +17,11 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
+body { margin: 0; min-width: 320px; word-break: keep-all; overflow-wrap: anywhere; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
-.page-shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+.page-shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+[hidden] { display: none !important; }
 .site-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 34px 0 24px; }
 h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: 0; font-size: clamp(1.7rem, 3vw, 2.15rem); letter-spacing: -.05em; }
@@ -33,7 +34,7 @@ h3 { margin-bottom: 10px; font-size: 1.2rem; }
 .button-primary { background: var(--coral); color: #fff; box-shadow: 0 5px 12px rgba(189, 85, 68, .15); }
 .button-primary:hover { background: var(--coral-dark); }
 .button-light { color: #684e42; background: #f6eee7; }
-.main-nav { display: flex; gap: 8px; overflow-x: auto; padding: 8px; border: 1px solid var(--line); border-radius: 17px; background: rgba(255,253,249,.8); }
+.main-nav { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 8px; border: 1px solid var(--line); border-radius: 17px; background: rgba(255,253,249,.8); }
 .nav-button { flex: 1 0 auto; min-height: 46px; padding: 9px 16px; border: 0; border-radius: 12px; color: var(--ink-soft); background: transparent; font-size: 1rem; font-weight: 700; }
 .nav-button.active { color: #fff; background: var(--coral); }
 .view { display: none; padding: 34px 0 42px; }
@@ -134,7 +135,8 @@ input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; accent-
   .page-shell { width: min(100% - 24px, 520px); }
   .site-header { align-items: flex-start; padding-top: 24px; }
   .site-header .button { min-height: 44px; padding: 8px 12px; white-space: nowrap; }
-  .main-nav { margin: 0 -2px; }
+  .main-nav { position: sticky; top: env(safe-area-inset-top); z-index: 3; margin: 0 -2px; background: rgba(255,253,249,.96); backdrop-filter: blur(6px); }
+  .toast { right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); max-width: calc(100% - 24px); }
   .nav-button { padding: 8px 12px; font-size: .93rem; }
   .view { padding-top: 25px; }
   .summary-grid { grid-template-columns: 1fr; gap: 10px; }
