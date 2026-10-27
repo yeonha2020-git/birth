@@ -389,7 +389,9 @@ function openFamilyDialog(family = null) {
   $("#dialog-title").textContent = family ? "가족 정보 수정" : "가족 추가";
   if (family) {
     $("#family-name").value = family.name;
-    $("#family-relationship").value = family.relationship;
+    const preset = $$("#family-relationship option").some((option) => option.value === family.relationship && option.value !== "custom");
+    $("#family-relationship").value = preset ? family.relationship : "custom";
+    $("#family-relationship-custom").value = preset ? "" : family.relationship;
     $("#family-group").value = family.group;
     $(`input[name="calendarType"][value="${family.calendarType}"]`).checked = true;
     if (family.calendarType === "solar") {
@@ -404,6 +406,7 @@ function openFamilyDialog(family = null) {
     $("#family-memo").value = family.memo;
   }
   updateCalendarFields();
+  updateRelationshipField();
   $("#family-dialog").showModal();
   $("#family-name").focus();
 }
@@ -417,12 +420,37 @@ function updateCalendarFields() {
   $("#lunar-day").required = type === "lunar";
 }
 
+// 휴대폰에서는 datalist 추천 목록이 잘 동작하지 않아 선택 목록 + '직접 입력' 칸을 사용합니다.
+function updateRelationshipField() {
+  const custom = $("#family-relationship").value === "custom";
+  const input = $("#family-relationship-custom");
+  input.hidden = !custom;
+  input.required = custom;
+  return input;
+}
+
+const RELATIONSHIP_GROUPS = { 외가: ["외할머니", "외할아버지", "이모", "이모부", "외삼촌", "외숙모"],
+  친가: ["할머니", "할아버지", "고모", "고모부", "삼촌", "숙모", "큰아버지", "큰어머니", "작은아버지", "작은어머니"] };
+
+function handleRelationshipChange() {
+  const input = updateRelationshipField();
+  if (!input.hidden) {
+    input.focus();
+    return;
+  }
+  // 외가·친가 관계를 고르면 가족 그룹도 맞춰 둡니다(직접 바꿀 수 있습니다).
+  const relationship = $("#family-relationship").value;
+  const group = Object.keys(RELATIONSHIP_GROUPS).find((name) => RELATIONSHIP_GROUPS[name].includes(relationship));
+  $("#family-group").value = group ?? "우리가족";
+}
+
 function collectFamily(formData) {
   const calendarType = formData.get("calendarType");
+  const choice = String(formData.get("relationshipChoice") ?? "");
   const base = {
     id: editingId ?? makeId(),
     name: String(formData.get("name")).trim(),
-    relationship: String(formData.get("relationship")).trim(),
+    relationship: (choice === "custom" ? String(formData.get("relationshipCustom") ?? "") : choice).trim(),
     group: String(formData.get("group")),
     calendarType,
     memo: String(formData.get("memo") ?? "").trim()
@@ -783,6 +811,7 @@ function setupEvents() {
   $("#close-dialog").addEventListener("click", () => $("#family-dialog").close());
   $("#cancel-dialog").addEventListener("click", () => $("#family-dialog").close());
   $$('input[name="calendarType"]').forEach((radio) => radio.addEventListener("change", updateCalendarFields));
+  $("#family-relationship").addEventListener("change", handleRelationshipChange);
   $("#family-search").addEventListener("input", renderFamilyList);
   $$(".filter-button").forEach((button) => button.addEventListener("click", () => {
     activeGroup = button.dataset.group;

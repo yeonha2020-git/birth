@@ -167,14 +167,25 @@
       <input id="family-name" name="name" type="text" maxlength="40" required placeholder="예: 김엄마">
 
       <label for="family-relationship">관계 <span class="required">*</span></label>
-      <input id="family-relationship" name="relationship" type="text" maxlength="40" required list="relationship-suggestions" placeholder="예: 엄마">
-      <datalist id="relationship-suggestions">
-        <option value="엄마"><option value="아빠"><option value="남편"><option value="아내">
-        <option value="아들"><option value="딸"><option value="외할머니"><option value="외할아버지">
-        <option value="이모"><option value="이모부"><option value="외삼촌"><option value="외숙모">
-        <option value="할머니"><option value="할아버지"><option value="고모"><option value="고모부">
-        <option value="삼촌"><option value="숙모">
-      </datalist>
+      <select id="family-relationship" name="relationshipChoice" required>
+        <option value="" disabled selected>관계를 선택하세요</option>
+        <optgroup label="우리가족">
+          <option>엄마</option><option>아빠</option><option>남편</option><option>아내</option>
+          <option>아들</option><option>딸</option><option>형</option><option>오빠</option>
+          <option>누나</option><option>언니</option><option>남동생</option><option>여동생</option>
+        </optgroup>
+        <optgroup label="외가">
+          <option>외할머니</option><option>외할아버지</option><option>이모</option><option>이모부</option>
+          <option>외삼촌</option><option>외숙모</option>
+        </optgroup>
+        <optgroup label="친가">
+          <option>할머니</option><option>할아버지</option><option>고모</option><option>고모부</option>
+          <option>삼촌</option><option>숙모</option><option>큰아버지</option><option>큰어머니</option>
+          <option>작은아버지</option><option>작은어머니</option>
+        </optgroup>
+        <option value="custom">✏️ 직접 입력</option>
+      </select>
+      <input id="family-relationship-custom" name="relationshipCustom" type="text" maxlength="40" placeholder="관계를 직접 입력하세요 (예: 사촌언니)" aria-label="관계 직접 입력" hidden>
 
       <label for="family-group">가족 그룹 <span class="required">*</span></label>
       <select id="family-group" name="group" required>

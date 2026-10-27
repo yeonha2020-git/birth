@@ -1,6 +1,6 @@
 // 앱 화면을 저장해 오프라인에서도 열리게 하고, 생일 알림을 대신 띄워 주는 서비스 워커입니다.
 // 안드로이드 크롬은 페이지에서 new Notification()을 허용하지 않으므로 알림은 모두 여기서 표시합니다.
-const APP_CACHE = "family-birthday-app-v2";
+const APP_CACHE = "family-birthday-app-v3";
 const DATA_CACHE = "family-birthday-data";
 const APP_FILES = [
   "./",
